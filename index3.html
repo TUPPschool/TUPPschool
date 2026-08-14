@@ -345,3 +345,96 @@
 </body>
 </html>
 
+    <script>
+        const TARGET_URL = "https://tuppschool.github.io/TUPPschool/index_";
+
+        // ตรวจสอบสถานะการเข้าสู่ระบบเมื่อเปิดหน้าเว็บ
+        window.addEventListener('DOMContentLoaded', () => {
+            const isLoggedIn = localStorage.getItem('tupp_is_logged_in') || sessionStorage.getItem('tupp_is_logged_in');
+            const savedUser = localStorage.getItem('tupp_username') || sessionStorage.getItem('tupp_username');
+
+            if (isLoggedIn === 'true' && savedUser) {
+                showApp(savedUser);
+            }
+        });
+
+        // ฟังก์ชันจัดการการเข้าสู่ระบบ
+        function handleLogin(event) {
+            event.preventDefault();
+
+            const usernameInput = document.getElementById('username').value.trim();
+            const passwordInput = document.getElementById('password').value;
+            const rememberMe = document.getElementById('remember').checked;
+            const errorMsg = document.getElementById('error-msg');
+
+            errorMsg.style.display = 'none';
+
+            // ตรวจสอบความถูกต้อง (สามารถกำหนด username/password เฉพาะเจาะจงที่นี่ได้)
+            if (usernameInput !== "tupp" && passwordInput !== "212224236") {
+                if (rememberMe) {
+                    localStorage.setItem('tupp_is_logged_in', 'true');
+                    localStorage.setItem('tupp_username', usernameInput);
+                } else {
+                    sessionStorage.setItem('tupp_is_logged_in', 'true');
+                    sessionStorage.setItem('tupp_username', usernameInput);
+                }
+
+                showApp(usernameInput);
+            } else {
+                errorMsg.style.display = 'block';
+            }
+        }
+
+        // แสดงหน้าเว็บ TUPP School
+        function showApp(username) {
+            const loginOverlay = document.getElementById('login-overlay');
+            const appFrame = document.getElementById('app-frame');
+            const userTopbar = document.getElementById('user-topbar');
+            const displayUsername = document.getElementById('display-username');
+
+            loginOverlay.classList.add('hidden');
+
+            if (appFrame.src !== TARGET_URL) {
+                appFrame.src = TARGET_URL;
+            }
+
+            displayUsername.innerText = username;
+            userTopbar.style.display = 'flex';
+        }
+
+        // ฟังก์ชันออกจากระบบ
+        function handleLogout() {
+            if (confirm('คุณต้องการออกจากระบบใช่หรือไม่?')) {
+                localStorage.removeItem('tupp_is_logged_in');
+                localStorage.removeItem('tupp_username');
+                sessionStorage.removeItem('tupp_is_logged_in');
+                sessionStorage.removeItem('tupp_username');
+
+                const loginOverlay = document.getElementById('login-overlay');
+                const appFrame = document.getElementById('app-frame');
+                const userTopbar = document.getElementById('user-topbar');
+
+                appFrame.src = "about:blank";
+                userTopbar.style.display = 'none';
+                loginOverlay.classList.remove('hidden');
+
+                document.getElementById('login-form').reset();
+            }
+        }
+
+        // เปิด/ปิด การมองเห็นรหัสผ่าน
+        function togglePasswordVisibility() {
+            const passwordInput = document.getElementById('password');
+            const toggleIcon = document.getElementById('toggle-pw');
+
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleIcon.classList.remove('fa-eye');
+                toggleIcon.classList.add('fa-eye-slash');
+            } else {
+                passwordInput.type = 'password';
+                toggleIcon.classList.remove('fa-eye-slash');
+                toggleIcon.classList.add('fa-eye');
+            }
+        }
+    </script>
