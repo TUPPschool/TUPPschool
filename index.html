@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="th">
-<head>c
+<head>
   <base target="_top">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
@@ -161,7 +161,7 @@
 <body>
 
   <!-- Splash / loading -->
-  <div class="lf-splash" id="lfLoading">
+  <div class="lf-splash hidden" id="lfLoading">
     <div class="splash-logo"><img id="splashLogo" class="hidden"><i class="fi fi-rr-following" id="splashIcon"></i></div>
     <div class="splash-title" id="splashTitle">ระบบลาออนไลน์</div>
     <div class="splash-sub" id="splashSub">กำลังโหลด...</div>
@@ -170,7 +170,7 @@
 
   <div class="lf-header">
     <div class="lf-logo"><img id="lfLogo" class="hidden"><i class="fi fi-rr-following" id="lfLogoIcon"></i></div>
-    <div style="flex:1"><h1 id="lfTitle">ระบบลาออนไลน์</h1><small id="lfSub">กำลังโหลด...</small></div>
+    <div style="flex:1"><h1 id="lfTitle">ระบบลาออนไลน์</h1><small id="lfSub">ยินดีต้อนรับ</small></div>
     <button id="btnOpenProfile" class="hidden" style="background:rgba(255,255,255,.18);border:0;border-radius:10px;width:36px;height:36px;color:#fff;display:grid;place-items:center;flex-shrink:0">
       <i class="fi fi-rr-user-pen"></i>
     </button>
@@ -193,7 +193,7 @@
   </div>
 
   <!-- แอปหลัก -->
-  <div class="hidden" id="viewApp">
+  <div id="viewApp">
     <!-- ยื่นลา -->
     <div class="lf-body tab-pane" id="tab-new">
       <div class="card-soft">
@@ -315,7 +315,7 @@
     </div>
   </div>
 
-  <div class="tabbar hidden" id="tabbar">
+  <div class="tabbar" id="tabbar">
     <button class="on" data-tab="new"><i class="fi fi-rr-add-document"></i>ยื่นลา</button>
     <button data-tab="outing"><i class="fi fi-rr-sign-out-alt"></i>ออกนอก</button>
     <button data-tab="history"><i class="fi fi-rr-time-past"></i>ประวัติ</button>
@@ -336,9 +336,11 @@
   <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script>
-  var LF = { userId: null, types: [], balances: {}, be: true, histStatus: '', editId: null };
+  // *** กำหนด ID ของผู้ใช้งานจำลอง (หรือ Employee Code ในระบบของคุณ) ที่นี่ ***
+  var DEFAULT_USER_ID = 'WEB_GUEST';
+
+  var LF = { userId: DEFAULT_USER_ID, types: [], balances: {}, be: true, histStatus: '', editId: null };
   var HOL = { year: new Date().getFullYear(), month: new Date().getMonth() + 1, data: [] };
   var LF_HIST = [];
 
@@ -353,7 +355,6 @@
       return r.text().then(function(txt){
         try { return JSON.parse(txt); }
         catch(e){
-          // เซิร์ฟเวอร์ไม่ได้ตอบกลับเป็น JSON (เช่น หน้า login ของ Google เมื่อ deploy ยังไม่เปิดให้ "Anyone" เข้าถึง)
           throw new Error('เซิร์ฟเวอร์ตอบกลับไม่ถูกต้อง (HTTP ' + r.status + '): ' + txt.slice(0, 200));
         }
       });
@@ -366,7 +367,6 @@
   /* ── Loading helpers ── */
   function splashHide(){
     $('#lfLoading').addClass('fade-out');
-    // ลบออกจาก DOM หลัง transition เสร็จ
     setTimeout(function(){ $('#lfLoading').addClass('hidden'); }, 480);
   }
   function setBtnLoading(sel, on){
@@ -406,7 +406,9 @@
   var ST = { SUBMITTED:['รออนุมัติ','#f59e0b'], L1_APPROVED:['อยู่ระหว่างอนุมัติ','#0ea5e9'], APPROVED:['อนุมัติ','#10b981'], REJECTED:['ไม่อนุมัติ','#ef4444'], CANCELLED:['ยกเลิก','#94a3b8'] };
 
   $(document).ready(function(){
-  initLiff();
+    // ข้ามการ Login LINE และโหลดแอปทันที
+    initDirectWeb();
+
     $('#btnLink').on('click', doLink);
     $('#btnSubmitLeave').on('click', submitLeave);
     $('#nlType').on('change', onTypeChange);
@@ -435,7 +437,29 @@
     });
   });
 
-  /** แนบเอกสารประกอบคำขอออกนอกโรงเรียน (เช่น หนังสือเชิญ / คำสั่งไปราชการ) */
+  /* ── โหลดเข้าใช้งานเว็บโดยตรง ไม่ผ่าน LIFF / LINE Login ── */
+  function initDirectWeb(){
+    api('liffGetConfig').then(function(c){
+      LF.be = c.buddhist_era;
+      LF.hoursPerDay = c.hours_per_day || 8;
+      LF.workHours = (c.work_hours || '08:00-17:00').split('-').map(function(x){ return x.trim(); });
+      prefillLeaveTimes();
+      if(c.theme_brand){ document.documentElement.style.setProperty('--brand', c.theme_brand); }
+      if(c.theme_accent){ document.documentElement.style.setProperty('--accent', c.theme_accent); }
+      $('#lfTitle').text(c.app_name || 'ระบบลาออนไลน์');
+      if(c.logo_url){
+        $('#lfLogo').attr('src', c.logo_url).removeClass('hidden'); 
+        $('#lfLogoIcon').addClass('hidden');
+      }
+      
+      // แสดงหน้าแอปพลิเคชันทันที
+      showApp();
+    }).catch(function(err){
+      // ถ้าดึงคอนฟิกไม่ได้ก็แสดงหน้าแอปหลักไว้ก่อน
+      showApp();
+    });
+  }
+
   function uploadOutingAttach(ev){
     var file = ev.target.files[0];
     if(!file){ $('#otAttachId').val(''); $('#otAttachStatus').text(''); return; }
@@ -469,7 +493,6 @@
     reader.readAsDataURL(file);
   }
 
-  /* ── ขออนุญาตออกนอกบริเวณโรงเรียน ── */
   function prefillOutingForm(){
     var today = new Date().toISOString().substring(0, 10);
     if(!$('#otStart').val()) $('#otStart').val(today);
@@ -551,62 +574,6 @@
     if(t === 'outing') loadOutingHistory();
   }
 
-  function initLiff(){
-    api('liffGetConfig').then(function(c){
-      LF.be = c.buddhist_era;
-      LF.hoursPerDay = c.hours_per_day || 8;
-      LF.workHours = (c.work_hours || '08:00-17:00').split('-').map(function(x){ return x.trim(); });
-      prefillLeaveTimes();
-      if(c.theme_brand){ document.documentElement.style.setProperty('--brand', c.theme_brand); }
-      if(c.theme_accent){ document.documentElement.style.setProperty('--accent', c.theme_accent); }
-      $('#lfTitle, #splashTitle').text(c.app_name);
-      if(c.logo_url){
-        $('#lfLogo').attr('src', c.logo_url).removeClass('hidden'); $('#lfLogoIcon').addClass('hidden');
-        $('#splashLogo').attr('src', c.logo_url).removeClass('hidden'); $('#splashIcon').addClass('hidden');
-      }
-      if(!c.liff_id){
-        splashHide();
-        $('#lfSub').text('ยังไม่ได้ตั้งค่า LIFF');
-        Swal.fire({ icon:'warning', title:'ยังไม่ได้ตั้งค่า LIFF ID', text:'กรุณาตั้งค่าในระบบหลังบ้าน' });
-        return;
-      }
-      liff.init({ liffId: c.liff_id }).then(function(){
-        if(!liff.isLoggedIn()){ liff.login(); return; }
-        return liff.getProfile();
-      }).then(function(profile){
-        if(!profile) return;
-        LF.userId = profile.userId;
-        $('#lfSub').text(profile.displayName || '');
-        $('#splashSub').text(profile.displayName || '');
-        checkLink();
-      }).catch(function(err){
-        splashHide();
-        $('#lfSub').text('เปิดผ่าน LINE เท่านั้น');
-        Swal.fire({ icon:'error', title:'เริ่มต้น LIFF ไม่สำเร็จ', text:String(err) });
-      });
-    }).catch(function(err){
-      splashHide();
-      $('#lfSub').text('โหลดการตั้งค่าไม่สำเร็จ');
-      Swal.fire({ icon:'error', title:'โหลดการตั้งค่าไม่สำเร็จ', text:String(err) });
-    });
-  }
-
-  function checkLink(){
-    api('getEmployeeByLineId', LF.userId).then(function(r){
-      splashHide();
-      if(r.status === 'success' && r.linked){
-        $('#lfSub').text(r.employee.name);
-        showApp();
-      } else {
-        $('#viewLink').removeClass('hidden');
-      }
-    }).catch(function(err){
-      splashHide();
-      $('#viewLink').removeClass('hidden');
-      toast('error', 'เชื่อมต่อระบบไม่สำเร็จ: ' + String(err));
-    });
-  }
-
   function doLink(){
     var code = $('#linkCode').val().trim();
     var phone = $('#linkPhone').val().trim();
@@ -685,7 +652,6 @@
     api('liffPreviewDays', start, end, 'hourly', 'hourly', st, et).then(function(r){
       if(r.days > 0){
         if(sameDay){
-          // ใช้ r.hours จากเซิร์ฟเวอร์ (หักพักเที่ยง/นอกเวลาทำงานแล้ว) ไม่ใช่ผลต่างเวลาดิบจากฝั่ง client
           $('#nlDays').text(r.hours + ' ชั่วโมง');
         } else {
           $('#nlDays').text(r.days + ' วัน');
@@ -720,7 +686,6 @@
     reader.readAsDataURL(file);
   }
 
-  /* ── โหมดแก้ไขใบลา (เฉพาะใบที่ยังไม่มีใครอนุมัติ) ── */
   function startEditLeave(id){
     var d = LF_HIST.filter(function(x){ return x.id === id; })[0];
     if(!d){ toast('error','ไม่พบใบลา'); return; }
@@ -807,7 +772,6 @@
     }).catch(function(){ $('#histList').html('<div class="text-center text-muted py-4">โหลดข้อมูลไม่สำเร็จ\x3c/div>'); });
   }
 
-  // แสดงชั่วโมงสำหรับใบลารายชั่วโมง (แปลงจาก total_days ที่เซิร์ฟเวอร์คำนวณ หักพักเที่ยงแล้ว) แทนที่จะโชว์เป็นเศษของวัน
   function fmtAmountLF(d){
     if(d.start_half === 'hourly'){
       var hrs = Math.round(Number(d.total_days) * (LF.hoursPerDay || 8) * 100) / 100;
@@ -832,7 +796,6 @@
         + (d.last_comment ? '<div class="small text-muted mt-1">หมายเหตุ: ' + esc(d.last_comment) + '\x3c/div>' : '')
         + (d.status === 'SUBMITTED' || d.status === 'L1_APPROVED'
           ? '<div class="d-flex gap-2 mt-2">'
-            // แก้ไขได้เฉพาะตอนยังไม่มีใครอนุมัติ พออนุมัติระดับ 1 แล้วเหลือแค่ยกเลิก
             + (d.status === 'SUBMITTED'
               ? '<button class="btn btn-sm flex-fill" style="border:1px solid var(--brand);color:var(--brand);border-radius:10px;font-size:.78rem" onclick="event.stopPropagation();startEditLeave(\'' + d.id + '\')">แก้ไข\x3c/button>'
               : '')
@@ -891,7 +854,7 @@
       $('#balList').html(html);
     }).catch(function(){ $('#balList').html('<div class="text-center text-muted py-3">โหลดข้อมูลไม่สำเร็จ\x3c/div>'); });
   }
-  /* ── Detail bottom sheet ── */
+
   function showDetail(id){
     var cached = LF_HIST.filter(function(d){ return d.id === id; })[0];
     $('#sheetBody').html(
@@ -948,9 +911,6 @@
     $('#detailSheet').removeClass('show');
   }
 
-  /* ── Profile edit sheet ── */
-  /* Google Drive's /thumbnail?id= endpoint is often blocked/unreliable inside LINE's in-app browser (silent broken image) —
-     fall back to the lh3.googleusercontent.com mirror, which embeds much more reliably in webviews. */
   function avatarImgHtml(fileId, size){
     if(!fileId) return '';
     size = size || 200;
@@ -981,7 +941,6 @@
         + '<label class="form-label">ชื่อเล่น</label><input class="form-control mb-2" id="profNick" value="' + esc(p.nickname) + '">'
         + '<label class="form-label">ตำแหน่ง</label><input class="form-control mb-3" id="profPosition" '
         +   'placeholder="เช่น ครู, ครูชำนาญการ" value="' + esc(p.position || '') + '">'
-        // ลายเซ็นจะถูกวางลงแบบฟอร์มใบลาตอนพิมพ์ ครูจึงไม่ต้องเซ็นบนกระดาษเอง
         + '<div style="border-top:1px solid var(--line);padding-top:12px;margin-bottom:12px">'
         +   '<label class="form-label">ลายเซ็นของฉัน</label>'
         +   '<div id="profSigPreview" style="border:1px solid var(--line);border-radius:10px;padding:10px;text-align:center;background:#fff;min-height:64px">'
@@ -1023,7 +982,6 @@
     reader.readAsDataURL(file);
   }
 
-  /** อัปโหลดลายเซ็นทันทีที่เลือกไฟล์ (บันทึกแยกจากปุ่มบันทึกโปรไฟล์) */
   function handleProfileSignature(ev){
     var file = ev.target.files[0]; if(!file) return;
     if(file.size > 2*1024*1024){ toast('error','ไฟล์ใหญ่เกิน 2MB'); return; }
@@ -1041,7 +999,7 @@
         }
       }).catch(function(){
         $('#profSigPreview').html('<span class="small text-muted">ยังไม่มีลายเซ็น\x3c/span>');
-        toast('error','อัปโหลดไม่สำเร็จ');
+        toast('error','อัพโหลดไม่สำเร็จ');
       });
     };
     reader.readAsDataURL(file);
